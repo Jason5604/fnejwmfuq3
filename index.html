@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成绩查询系统</title>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+    background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:20px;
+}
+.container{width:100%;max-width:1200px}
+
+.search-card,.result-card{
+    background:rgba(255,255,255,.95);
+    border-radius:20px;
+    padding:50px 40px;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);
+}
+
+.search-card{text-align:center}
+h1{font-size:42px;margin-bottom:20px}
+.subtitle{font-size:20px;color:#6e6e73;margin-bottom:20px}
+.file-info{color:#6e6e73;margin-bottom:20px}
+
+input[type=text]{
+    width:100%;
+    padding:18px;
+    border-radius:12px;
+    border:2px solid #e5e5e7;
+    font-size:17px;
+}
+input:disabled{background:#f5f5f7}
+
+.search-btn{
+    margin-top:20px;
+    padding:16px 48px;
+    border:none;
+    border-radius:12px;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    color:#fff;
+    font-size:17px;
+    cursor:pointer;
+}
+.search-btn:disabled{opacity:.5}
+
+.result-card{display:none}
+
+.student-info{
+    display:flex;
+    justify-content:space-between;
+    padding:30px;
+    background:linear-gradient(135deg,#f5f7fa,#c3cfe2);
+    border-radius:16px;
+    margin-bottom:30px;
+}
+.student-info h2{font-size:30px;margin-bottom:10px}
+
+.total-score-section{text-align:right}
+#totalScore{font-size:52px;font-weight:700;color:#667eea}
+#totalRank{font-size:20px;color:#667eea}
+
+.scores-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:20px;
+}
+
+.score-item{
+    background:#fff;
+    padding:22px;
+    border-radius:12px;
+    border:2px solid #f5f5f7;
+}
+.score-item h2{font-size:34px}
+.subject-name{color:#6e6e73}
+.rank-info{color:#667eea;font-size:14px}
+
+.back-btn{
+    margin-top:30px;
+    padding:12px 32px;
+    border-radius:12px;
+    border:2px solid #667eea;
+    background:transparent;
+    color:#667eea;
+    cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<div class="search-card" id="searchCard">
+    <h1>梅州兴宁高二期末成绩查询系统 by@叶天哲</h1>
+    <p class="subtitle">系统自动加载成绩文件</p>
+    <div class="file-info" id="fileInfo">正在加载 merged.xlsx...</div>
+
+    <input type="text" id="searchInput" placeholder="姓名或考号" disabled>
+    <button class="search-btn" id="searchBtn" onclick="searchScore()" disabled>查询</button>
+</div>
+
+<div class="result-card" id="resultCard">
+    <div class="student-info">
+        <div>
+            <h2 id="studentName"></h2>
+            <div id="studentId"></div>
+            <div id="studentSchool"></div>
+            <div id="studentClass"></div>
+            <div id="studentSubject"></div>
+        </div>
+        <div class="total-score-section">
+            <div id="totalScore"></div>
+            <div id="totalRank"></div>
+        </div>
+    </div>
+
+    <div class="scores-grid" id="scoresGrid"></div>
+
+    <button class="back-btn" onclick="backToSearch()">返回</button>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+let studentsData = [];
+
+function v(c){ return c==null ? "" : String(c).trim(); }
+
+/* ===== 表头解析 ===== */
+function parseHeader(rows){
+    const map = {};
+    let lastSubject = null;
+
+    rows.forEach(row=>{
+        row.forEach((cell,i)=>{
+            const t = v(cell);
+            if(!t) return;
+
+            if(/语文|数学|英语|物理|历史|化学|生物|政治|地理/.test(t)){
+                map[t] ??= {};
+                map[t].score = i;
+                lastSubject = t;
+            }
+
+            if(t.includes("排名")){
+                if(lastSubject) map[lastSubject].rank = i;
+                else map.totalRank = i;
+            }
+        });
+    });
+    return map;
+}
+
+/* ===== 学生解析 ===== */
+function parseStudent(row, header){
+    if(!v(row[3])) return null;
+
+    const stu = {
+        school:v(row[0]),
+        class:v(row[1]),
+        id:v(row[2]),
+        name:v(row[3]),
+        subject:v(row[4]),
+        totalScore:row[5]||0,
+        totalRank:header.totalRank?v(row[header.totalRank]):"",
+        scores:{}
+    };
+
+    Object.keys(header).forEach(k=>{
+        if(k==="totalRank") return;
+        const h = header[k];
+        const s = parseFloat(row[h.score]);
+        if(!isNaN(s)){
+            stu.scores[k] = {
+                score:s,
+                rank:h.rank?v(row[h.rank]):""
+            };
+        }
+    });
+    return stu;
+}
+
+/* ===== 自动加载 merged.xlsx（async 版） ===== */
+window.addEventListener("DOMContentLoaded", () => {
+    loadXLSX();
+});
+
+async function loadXLSX(){
+    try{
+        const response = await fetch("./merged.xlsx");
+        if(!response.ok) throw new Error("文件不存在");
+
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type:"array" });
+
+        studentsData = [];
+
+        workbook.SheetNames.forEach(name=>{
+            const sheet = workbook.Sheets[name];
+            const rows = XLSX.utils.sheet_to_json(sheet,{header:1});
+            const header = parseHeader(rows.slice(0,3));
+
+            for(let i=3;i<rows.length;i++){
+                const stu = parseStudent(rows[i], header);
+                if(stu) studentsData.push(stu);
+            }
+        });
+
+        fileInfo.textContent = `已加载 merged.xlsx（${studentsData.length} 条）`;
+        searchInput.disabled = false;
+        searchBtn.disabled = false;
+
+        alert("数据库加载成功");
+
+    }catch(err){
+        console.error(err);
+        fileInfo.textContent = "数据库加载失败";
+        alert("数据库加载失败，请使用 HTTP 方式打开页面");
+    }
+}
+
+/* ===== 查询与展示 ===== */
+function searchScore(){
+    const key = searchInput.value.trim();
+    const stu = studentsData.find(s=>s.name===key||s.id===key);
+    if(!stu){ alert("未找到"); return; }
+    displayResult(stu);
+}
+
+function displayResult(s){
+    searchCard.style.display="none";
+    resultCard.style.display="block";
+
+    studentName.textContent=s.name;
+    studentId.textContent="考号："+s.id;
+    studentSchool.textContent="学校："+s.school;
+    studentClass.textContent="班级："+s.class;
+    studentSubject.textContent="选科："+s.subject;
+    totalScore.textContent=s.totalScore;
+    totalRank.textContent=s.totalRank?`排名：${s.totalRank}`:"";
+
+    scoresGrid.innerHTML="";
+    Object.keys(s.scores).forEach(k=>{
+        scoresGrid.innerHTML+=`
+        <div class="score-item">
+            <div class="subject-name">${k}</div>
+            <h2>${s.scores[k].score}</h2>
+            ${s.scores[k].rank?`<div class="rank-info">排名：${s.scores[k].rank}</div>`:""}
+        </div>`;
+    });
+}
+
+function backToSearch(){
+    resultCard.style.display="none";
+    searchCard.style.display="block";
+}
+</script>
+</body>
+</html>
