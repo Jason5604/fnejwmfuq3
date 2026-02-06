@@ -402,10 +402,10 @@ input[type=text]:focus {
     <h1>梅州兴宁高二期末成绩查询 by@叶天哲</h1>
     
     <div class="loading-section">
-        <div class="status-msg" id="statusMsg"><div class="loading"></div> 正在加载数据...</div>
+        <div class="status-msg" id="statusMsg"><div class="loading"></div> 正在加载数据库...</div>
     </div>
     
-    <input type="text" id="searchInput" placeholder="请等待数据加载完成" disabled>
+    <input type="text" id="searchInput" placeholder="请等待数据库加载完成" disabled>
     <button class="search-btn" id="searchBtn" onclick="searchScore()" disabled>🔍 查询成绩</button>
 </div>
 
@@ -602,13 +602,13 @@ window.addEventListener("DOMContentLoaded", async () => {
             }
         });
         
-        document.getElementById('statusMsg').textContent = `✓ 成功加载 ${studentsData.length} 条学生数据`;
+        document.getElementById('statusMsg').textContent = `✓ 数据库加载完成`;
         document.getElementById('searchInput').disabled = false;
         document.getElementById('searchInput').placeholder = '输入姓名或考号查询';
         document.getElementById('searchBtn').disabled = false;
         
     } catch (error) {
-        document.getElementById('statusMsg').textContent = '✗ 数据加载失败，请刷新页面重试';
+        document.getElementById('statusMsg').textContent = '✗ 数据库加载失败，请刷新页面重试';
     }
 });
 
@@ -734,3 +734,4 @@ document.getElementById('searchInput').addEventListener('keypress', function(e) 
 </script>
 </body>
 </html>
+
